@@ -81,6 +81,23 @@ func (s *DbService) UpdateUser(sessionId string, user model.User) error {
 	return nil
 }
 
+func (s *DbService) ResetVotings(sessionId string) error {
+	_, err := r.DB(db).Table(tableSessions).Get(sessionId).
+		Update(
+			map[string]r.Term{"users": r.Row.Field("users").Map(func(u r.Term) r.Term {
+				return r.Branch(
+					u.Field("Voting"),
+					u.Merge(map[string]int{"Voting": 0}),
+					u,
+				)
+			})},
+		).RunWrite(s.Session)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
 func (s *DbService) CountVotings(sessionId string) (int, error) {
 	var arr []interface{}
 	result, err := r.DB(db).Table(tableSessions).

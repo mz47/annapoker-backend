@@ -10,7 +10,6 @@ import (
 
 var (
 	stompHost      = "localhost:61613"
-	users          []model.User
 	topicCommand   = "/topic/go_stomp_command"
 	topicBroadcast = "/topic/go_stomp_broadcast"
 	options        = []func(conn *stomp.Conn) error{
@@ -60,11 +59,10 @@ func (s *StompService) ReceiveCommands() {
 			s.UpdateVoting(command)
 			s.PublishUsers(command.SessionId)
 		case "RESET_VOTINGS":
-			s.ResetVotings()
+			s.ResetVotings(command.SessionId)
 			s.PublishUpdateUsers(command.SessionId)
 		case "RESET_USERS":
-			s.ResetUsers()
-			s.PublishUsers(command.SessionId)
+			log.Println("should reset users")
 		}
 	}
 }
@@ -78,14 +76,14 @@ func (s *StompService) CreateSession(sessionId string) {
 }
 
 func (s *StompService) PublishUsers(sessionId string) {
-	usersFromDb, err := s.DbService.GetUsers(sessionId)
+	users, err := s.DbService.GetUsers(sessionId)
 	if err != nil {
 		log.Println("could not get users from session:", err.Error())
 	}
 
 	broadcast := model.Broadcast{
 		Type:      "GET_USERS",
-		Data:      usersFromDb,
+		Data:      users,
 		Timestamp: time.Now(),
 	}
 	payload, _ := json.Marshal(broadcast)
@@ -94,10 +92,14 @@ func (s *StompService) PublishUsers(sessionId string) {
 	if err != nil {
 		log.Println("could not send user broadcast:", err.Error())
 	}
-	log.Println("published users:", usersFromDb)
+	log.Println("published users:", users)
 }
 
 func (s *StompService) PublishUpdateUsers(sessionId string) {
+	users, err := s.DbService.GetUsers(sessionId)
+	if err != nil {
+		log.Println("could not get users from session:", err.Error())
+	}
 	broadcast := model.Broadcast{
 		Type:      "UPDATE_USERS",
 		Data:      users,
@@ -105,7 +107,7 @@ func (s *StompService) PublishUpdateUsers(sessionId string) {
 	}
 	payload, _ := json.Marshal(broadcast)
 
-	err := s.Connection.Send(topicBroadcast+"."+sessionId, "text/plain", payload)
+	err = s.Connection.Send(topicBroadcast+"."+sessionId, "text/plain", payload)
 	if err != nil {
 		log.Println("could not send update user broadcast:", err.Error())
 	}
@@ -126,17 +128,18 @@ func (s *StompService) PublishRevealVotings(sessionId string) {
 	}
 }
 
-func (s *StompService) ResetUsers() {
-	users = []model.User{}
-}
-
-func (s *StompService) ResetVotings() {
-	var temp []model.User
-	for _, value := range users {
-		value.Voting = 0
-		temp = append(temp, value)
+func (s *StompService) ResetVotings(sessionId string) {
+	err := s.DbService.ResetVotings(sessionId)
+	if err != nil {
+		log.Println("could not reset votings:", err.Error())
 	}
-	users = temp
+
+	//var temp []model.User
+	//for _, value := range users {
+	//	value.Voting = 0
+	//	temp = append(temp, value)
+	//}
+	//users = temp
 }
 
 func (s *StompService) UpdateVoting(command model.Command) {
@@ -156,8 +159,6 @@ func (s *StompService) UpdateVoting(command model.Command) {
 }
 
 func (s *StompService) SaveUser(command model.Command) {
-	users = append(users, command.User)
-
 	err := s.DbService.AddUserToSession(command.SessionId, command.User)
 	if err != nil {
 		log.Println("could not append user", err.Error())
