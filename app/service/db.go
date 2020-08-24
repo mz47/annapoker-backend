@@ -5,10 +5,11 @@ import (
 	r "gopkg.in/rethinkdb/rethinkdb-go.v6"
 	"log"
 	"marcel.works/stop-go/app/model"
+	"os"
+	"strings"
 )
 
 var (
-	dbHost        = "localhost:28015"
 	db            = "annapoker"
 	tableSessions = "sessions"
 	fieldUsers    = "users"
@@ -20,8 +21,13 @@ type DbService struct {
 }
 
 func (s *DbService) Connect() error {
+	dbHostEnv := os.Getenv("ANNAPOKER_DB_HOSTS")
+	if dbHostEnv == "" {
+		dbHostEnv = "localhost:28015"
+	}
+	hosts := strings.Split(dbHostEnv, ",")
 	session, err := r.Connect(r.ConnectOpts{
-		Address: dbHost,
+		Addresses: hosts,
 	})
 	if err != nil {
 		log.Fatalln("could not connect to database:", err.Error())

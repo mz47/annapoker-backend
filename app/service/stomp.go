@@ -5,17 +5,13 @@ import (
 	"github.com/go-stomp/stomp"
 	"log"
 	"marcel.works/stop-go/app/model"
+	"os"
 	"time"
 )
 
 var (
-	stompHost      = "localhost:61613"
 	topicCommand   = "/topic/go_stomp_command"
 	topicBroadcast = "/topic/go_stomp_broadcast"
-	options        = []func(conn *stomp.Conn) error{
-		stomp.ConnOpt.Login("guest", "guest"),
-		stomp.ConnOpt.Host("/"),
-	}
 )
 
 type StompService struct {
@@ -24,7 +20,17 @@ type StompService struct {
 }
 
 func (s *StompService) Connect() error {
-	connection, err := stomp.Dial("tcp", stompHost, options...)
+	brokerHost := os.Getenv("ANNAPOKER_BROKER_HOST")
+	if brokerHost == "" {
+		brokerHost = "localhost:61613"
+	}
+	brokerUser := os.Getenv("ANNAPOKER_BROKER_USER")
+	brokerPass := os.Getenv("ANNAPOKER_BROKER_PASS")
+	options := []func(conn *stomp.Conn) error{
+		stomp.ConnOpt.Login(brokerUser, brokerPass),
+		stomp.ConnOpt.Host("/"),
+	}
+	connection, err := stomp.Dial("tcp", brokerHost, options...)
 	if err != nil {
 		return err
 	}
