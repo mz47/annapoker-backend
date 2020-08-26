@@ -89,15 +89,15 @@ func (s *RedisService) CountVotings(sessionId string) (int, error) {
 	return counter, nil
 }
 
-func (s *RedisService) getSession(sessionId string) (*model.Session, error) {
+func (s *RedisService) getSession(sessionId string) (model.Session, error) {
 	payload, err := s.Client.Get(s.Ctx, sessionId).Result()
 	if err != nil {
-		return nil, err
+		return model.Session{}, err
 	}
 	var session model.Session
 	err = json.Unmarshal([]byte(payload), &session)
 	if err != nil {
-		return nil, err
+		return model.Session{}, err
 	}
-	return &session, nil
+	return session, nil
 }
