@@ -37,82 +37,67 @@ func (s *RedisService) InsertSession(sessionId string) error {
 	return s.Client.Set(s.Ctx, sessionId, payload, 0).Err()
 }
 
-func (s *RedisService) InsertUser(user model.User) error {
-	payload, _ := json.Marshal(user)
-	return s.Client.Set(s.Ctx, user.Uuid, payload, 0).Err()
-}
-
 func (s *RedisService) AddUserToSession(sessionId string, user model.User) error {
-	inbound, err := s.Client.Get(s.Ctx, sessionId).Result()
-	if err != nil {
-		return err
-	}
-	var session model.Session
-	_ = json.Unmarshal([]byte(inbound), &session)
+	session, _ := s.getSession(sessionId)
 	session.Users = append(session.Users, user)
 	outbound, _ := json.Marshal(session)
 	return s.Client.Set(s.Ctx, sessionId, outbound, 0).Err()
 }
 
 func (s *RedisService) GetUsers(sessionId string) ([]model.User, error) {
-	payload, err := s.Client.Get(s.Ctx, sessionId).Result()
-	if err != nil {
-		return nil, err
-	}
-	var session model.Session
-	_ = json.Unmarshal([]byte(payload), &session)
+	session, _ := s.getSession(sessionId)
 	return session.Users, nil
 }
 
 func (s *RedisService) UpdateUser(sessionId string, user model.User) error {
-	payload, err := s.Client.Get(s.Ctx, sessionId).Result()
-	if err != nil {
-		return err
-	}
-	var session model.Session
-	err = json.Unmarshal([]byte(payload), &session)
+	session, err := s.getSession(sessionId)
 	if err != nil {
 		return err
 	}
 	for index, u := range session.Users {
-		if user.Uuid == u.Uuid {
-			session.Users[index] = user
+		if u.Uuid == user.Uuid {
+			session.Users[index].Voting = user.Voting
 		}
 	}
-	return nil
+	payload, err := json.Marshal(session)
+	if err != nil {
+		return err
+	}
+	return s.Client.Set(s.Ctx, sessionId, payload, 0).Err()
 }
 
 func (s *RedisService) ResetVotings(sessionId string) error {
-	payload, err := s.Client.Get(s.Ctx, sessionId).Result()
-	if err != nil {
-		return err
-	}
-	var session model.Session
-	err = json.Unmarshal([]byte(payload), &session)
-	if err != nil {
-		return err
-	}
+	session, _ := s.getSession(sessionId)
 	for index, _ := range session.Users {
 		session.Users[index].Voting = 0
 	}
-	return nil
+	payload, err := json.Marshal(session)
+	if err != nil {
+		return err
+	}
+	return s.Client.Set(s.Ctx, sessionId, payload, 0).Err()
 }
 
 func (s *RedisService) CountVotings(sessionId string) (int, error) {
 	counter := 0
-	payload, err := s.Client.Get(s.Ctx, sessionId).Result()
-	if err != nil {
-		return -1, err
-	}
-	var session model.Session
-	err = json.Unmarshal([]byte(payload), &session)
-	if err != nil {
-		return -1, err
-	}
+	session, _ := s.getSession(sessionId)
 	for index, _ := range session.Users {
 		if session.Users[index].Voting == 0 {
 			counter++
 		}
 	}
 	return counter, nil
+}
+
+func (s *RedisService) getSession(sessionId string) (*model.Session, error) {
+	payload, err := s.Client.Get(s.Ctx, sessionId).Result()
+	if err != nil {
+		return nil, err
+	}
+	var session model.Session
+	err = json.Unmarshal([]byte(payload), &session)
+	if err != nil {
+		return nil, err
+	}
+	return &session, nil
 }

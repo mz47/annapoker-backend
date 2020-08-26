@@ -152,6 +152,7 @@ func (s *StompService) UpdateVoting(command model.Command) {
 	if err != nil {
 		log.Println("could not count votings:", err.Error())
 	}
+	log.Println("counted", counter, "users with voting 0")
 
 	if counter == 0 {
 		s.PublishRevealVotings(command.SessionId)
