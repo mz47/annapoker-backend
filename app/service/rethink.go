@@ -16,11 +16,11 @@ var (
 	fieldUuid     = "id"
 )
 
-type DbService struct {
+type RethinkService struct {
 	Session *rethinkdb.Session
 }
 
-func (s *DbService) Connect() error {
+func (s *RethinkService) Connect() error {
 	dbHostEnv := os.Getenv("ANNAPOKER_DB_HOSTS")
 	if dbHostEnv == "" {
 		dbHostEnv = "localhost:28015"
@@ -37,7 +37,7 @@ func (s *DbService) Connect() error {
 	return nil
 }
 
-func (s *DbService) AddUserToSession(sessionId string, user model.User) error {
+func (s *RethinkService) AddUserToSession(sessionId string, user model.User) error {
 	_, err := r.DB(db).Table(tableSessions).
 		Filter(r.Row.Field(fieldUuid).Eq(sessionId)).
 		Update(
@@ -50,7 +50,7 @@ func (s *DbService) AddUserToSession(sessionId string, user model.User) error {
 	return nil
 }
 
-func (s *DbService) GetUsers(sessionId string) ([]model.User, error) {
+func (s *RethinkService) GetUsers(sessionId string) ([]model.User, error) {
 	var arr [][]model.User
 	result, err := r.DB(db).Table(tableSessions).
 		Filter(r.Row.Field(fieldUuid).Eq(sessionId)).
@@ -68,7 +68,7 @@ func (s *DbService) GetUsers(sessionId string) ([]model.User, error) {
 	return arr[0], nil
 }
 
-func (s *DbService) UpdateUser(sessionId string, user model.User) error {
+func (s *RethinkService) UpdateUser(sessionId string, user model.User) error {
 	_, err := r.DB(db).Table(tableSessions).
 		Get(sessionId).
 		Update(
@@ -87,7 +87,7 @@ func (s *DbService) UpdateUser(sessionId string, user model.User) error {
 	return nil
 }
 
-func (s *DbService) ResetVotings(sessionId string) error {
+func (s *RethinkService) ResetVotings(sessionId string) error {
 	_, err := r.DB(db).Table(tableSessions).Get(sessionId).
 		Update(
 			map[string]r.Term{"users": r.Row.Field("users").Map(func(u r.Term) r.Term {
@@ -104,7 +104,7 @@ func (s *DbService) ResetVotings(sessionId string) error {
 	return nil
 }
 
-func (s *DbService) CountVotings(sessionId string) (int, error) {
+func (s *RethinkService) CountVotings(sessionId string) (int, error) {
 	var arr []interface{}
 	result, err := r.DB(db).Table(tableSessions).
 		Get(sessionId).
@@ -128,7 +128,7 @@ func (s *DbService) CountVotings(sessionId string) (int, error) {
 	return -1, nil
 }
 
-func (s *DbService) InsertSession(sessionId string) error {
+func (s *RethinkService) InsertSession(sessionId string) error {
 	session := model.Session{
 		Id:    sessionId,
 		Users: nil,
@@ -140,7 +140,7 @@ func (s *DbService) InsertSession(sessionId string) error {
 	return nil
 }
 
-func (s *DbService) InsertUser(user model.User) error {
+func (s *RethinkService) InsertUser(user model.User) error {
 	_, err := r.DB(db).Table("users").Insert(user).Run(s.Session)
 	if err != nil {
 		return err
@@ -148,7 +148,7 @@ func (s *DbService) InsertUser(user model.User) error {
 	return nil
 }
 
-func (s *DbService) GetAllSessions() error {
+func (s *RethinkService) GetAllSessions() error {
 	result := r.DB(db).Table(tableSessions).String()
 	log.Println("received", result)
 	return nil

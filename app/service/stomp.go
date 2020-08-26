@@ -16,7 +16,8 @@ var (
 
 type StompService struct {
 	Connection *stomp.Conn
-	DbService  *DbService
+	//DbService  *RethinkService
+	DbService *RedisService
 }
 
 func (s *StompService) Connect() error {
@@ -139,13 +140,6 @@ func (s *StompService) ResetVotings(sessionId string) {
 	if err != nil {
 		log.Println("could not reset votings:", err.Error())
 	}
-
-	//var temp []model.User
-	//for _, value := range users {
-	//	value.Voting = 0
-	//	temp = append(temp, value)
-	//}
-	//users = temp
 }
 
 func (s *StompService) UpdateVoting(command model.Command) {

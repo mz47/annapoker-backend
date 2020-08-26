@@ -3,9 +3,11 @@ module marcel.works/stop-go
 go 1.14
 
 require (
+	github.com/go-redis/redis/v8 v8.0.0-beta.8
 	github.com/go-stomp/stomp v2.0.6+incompatible
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
+	github.com/segmentio/encoding v0.1.15
 	github.com/sirupsen/logrus v1.6.0 // indirect
 	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de // indirect
 	golang.org/x/net v0.0.0-20200813134508-3edf25e44fcc // indirect

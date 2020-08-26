@@ -11,7 +11,8 @@ var (
 
 type App struct {
 	StompService *service.StompService
-	DbService    *service.DbService
+	//DbService    *service.RethinkService
+	DbService *service.RedisService
 }
 
 func (a *App) Start() {
