@@ -6,12 +6,15 @@ import (
 	"github.com/segmentio/encoding/json"
 	"marcel.works/stop-go/app/model"
 	"os"
+	"time"
 )
 
 type RedisService struct {
 	Client *redis.Client
 	Ctx    context.Context
 }
+
+const TTL time.Duration = 10 * time.Minute
 
 func (s *RedisService) Connect() error {
 	auth := os.Getenv("ANNAPOKER_DB_AUTH")
@@ -34,14 +37,14 @@ func (s *RedisService) InsertSession(sessionId string) error {
 		Users: nil,
 	}
 	payload, _ := json.Marshal(session)
-	return s.Client.Set(s.Ctx, sessionId, payload, 0).Err()
+	return s.Client.Set(s.Ctx, sessionId, payload, TTL).Err()
 }
 
 func (s *RedisService) AddUserToSession(sessionId string, user model.User) error {
 	session, _ := s.getSession(sessionId)
 	session.Users = append(session.Users, user)
 	outbound, _ := json.Marshal(session)
-	return s.Client.Set(s.Ctx, sessionId, outbound, 0).Err()
+	return s.Client.Set(s.Ctx, sessionId, outbound, TTL).Err()
 }
 
 func (s *RedisService) GetUsers(sessionId string) ([]model.User, error) {
@@ -63,7 +66,7 @@ func (s *RedisService) UpdateUser(sessionId string, user model.User) error {
 	if err != nil {
 		return err
 	}
-	return s.Client.Set(s.Ctx, sessionId, payload, 0).Err()
+	return s.Client.Set(s.Ctx, sessionId, payload, TTL).Err()
 }
 
 func (s *RedisService) ResetVotings(sessionId string) error {
@@ -75,7 +78,7 @@ func (s *RedisService) ResetVotings(sessionId string) error {
 	if err != nil {
 		return err
 	}
-	return s.Client.Set(s.Ctx, sessionId, payload, 0).Err()
+	return s.Client.Set(s.Ctx, sessionId, payload, TTL).Err()
 }
 
 func (s *RedisService) CountVotings(sessionId string) (int, error) {
