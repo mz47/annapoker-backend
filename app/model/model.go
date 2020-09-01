@@ -22,6 +22,7 @@ type User struct {
 }
 
 type Session struct {
-	Id    string `rethinkdb:"id,omitempty"`
-	Users []User `rethinkdb:"users"`
+	Id        string    `json:"id"`
+	Users     []User    `json:"users"`
+	Timestamp time.Time `json:"timestamp"`
 }

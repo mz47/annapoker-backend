@@ -9,15 +9,14 @@ import (
 	"time"
 )
 
-var (
-	topicCommand   = "/topic/go_stomp_command"
-	topicBroadcast = "/topic/go_stomp_broadcast"
+const (
+	_topicCommand   = "/topic/go_stomp_command"
+	_topicBroadcast = "/topic/go_stomp_broadcast"
 )
 
 type StompService struct {
 	Connection *stomp.Conn
-	//DbService  *RethinkService
-	DbService *RedisService
+	DbService  *RedisService
 }
 
 func (s *StompService) Connect() error {
@@ -40,26 +39,23 @@ func (s *StompService) Connect() error {
 }
 
 func (s *StompService) ReceiveCommands() {
-	subscription, err := s.Connection.Subscribe(topicCommand, stomp.AckAuto)
+	subscription, err := s.Connection.Subscribe(_topicCommand, stomp.AckAuto)
 	if err != nil {
-		log.Fatal("cannot subscribe to", topicCommand, ":", err.Error())
+		log.Fatal("cannot subscribe to", _topicCommand, ":", err.Error())
 	}
-	log.Println("subscribed to", topicCommand)
+	log.Println("subscribed to", _topicCommand)
 
 	var command model.Command
 	for true {
 		message := <-subscription.C
 		_ = json.Unmarshal(message.Body, &command)
-		log.Println("received command:", command)
-
+		log.Println(">>> received", command.Cmd, "on", _topicCommand)
 		switch command.Cmd {
 		case "CREATE_SESSION":
 			s.CreateSession(command.SessionId)
 		case "SAVE_USER":
 			s.SaveUser(command)
 			s.PublishUsers(command.SessionId)
-		case "REMOVE_USER":
-			log.Println("Removing user..")
 		case "GET_USERS":
 			s.PublishUsers(command.SessionId)
 		case "UPDATE_VOTING":
@@ -68,8 +64,9 @@ func (s *StompService) ReceiveCommands() {
 		case "RESET_VOTINGS":
 			s.ResetVotings(command.SessionId)
 			s.PublishUpdateUsers(command.SessionId)
-		case "RESET_USERS":
-			log.Println("should reset users")
+		case "REMOVE_USER":
+			s.RemoveUser(command)
+			s.PublishUpdateUsers(command.SessionId)
 		}
 	}
 }
@@ -79,60 +76,26 @@ func (s *StompService) CreateSession(sessionId string) {
 	if err != nil {
 		log.Println("could not create new session:", err.Error())
 	}
-	log.Println("Created Session with Id", sessionId)
 }
 
 func (s *StompService) PublishUsers(sessionId string) {
 	users, err := s.DbService.GetUsers(sessionId)
 	if err != nil {
-		log.Println("could not get users from session:", err.Error())
+		log.Println("no users found or session nil:", err.Error())
+		s.SendBroadcast("NO_SESSION_FOUND", sessionId, nil)
+		return
 	}
-
-	broadcast := model.Broadcast{
-		Type:      "GET_USERS",
-		Data:      users,
-		Timestamp: time.Now(),
-	}
-	payload, _ := json.Marshal(broadcast)
-
-	err = s.Connection.Send(topicBroadcast+"."+sessionId, "text/plain", payload)
-	if err != nil {
-		log.Println("could not send user broadcast:", err.Error())
-	}
-	log.Println("published users:", users)
+	s.SendBroadcast("GET_USERS", sessionId, users)
 }
 
 func (s *StompService) PublishUpdateUsers(sessionId string) {
 	users, err := s.DbService.GetUsers(sessionId)
 	if err != nil {
-		log.Println("could not get users from session:", err.Error())
+		log.Println("no users found or session nil:", err.Error())
+		s.SendBroadcast("NO_SESSION_FOUND", sessionId, nil)
+		return
 	}
-	broadcast := model.Broadcast{
-		Type:      "UPDATE_USERS",
-		Data:      users,
-		Timestamp: time.Now(),
-	}
-	payload, _ := json.Marshal(broadcast)
-
-	err = s.Connection.Send(topicBroadcast+"."+sessionId, "text/plain", payload)
-	if err != nil {
-		log.Println("could not send update user broadcast:", err.Error())
-	}
-	log.Println("published update users:", string(payload))
-}
-
-func (s *StompService) PublishRevealVotings(sessionId string) {
-	broadcast := model.Broadcast{
-		Type:      "REVEAL_VOTINGS",
-		Data:      nil,
-		Timestamp: time.Time{},
-	}
-	payload, _ := json.Marshal(broadcast)
-
-	err := s.Connection.Send(topicBroadcast+"."+sessionId, "text/plain", payload)
-	if err != nil {
-		log.Println("could not send reveal votings broadcast:", err.Error())
-	}
+	s.SendBroadcast("UPDATE_USERS", sessionId, users)
 }
 
 func (s *StompService) ResetVotings(sessionId string) {
@@ -147,15 +110,12 @@ func (s *StompService) UpdateVoting(command model.Command) {
 	if err != nil {
 		log.Println("could not update user:", err.Error())
 	}
-
 	counter, err := s.DbService.CountVotings(command.SessionId)
 	if err != nil {
 		log.Println("could not count votings:", err.Error())
 	}
-	log.Println("counted", counter, "users with voting 0")
-
 	if counter == 0 {
-		s.PublishRevealVotings(command.SessionId)
+		s.SendBroadcast("REVEAL_VOTINGS", command.SessionId, nil)
 	}
 }
 
@@ -164,5 +124,25 @@ func (s *StompService) SaveUser(command model.Command) {
 	if err != nil {
 		log.Println("could not append user", err.Error())
 	}
-	log.Println("added user:", command.User, "to session", command.SessionId)
+}
+
+func (s *StompService) RemoveUser(command model.Command) {
+	err := s.DbService.RemoveUserFromSession(command.SessionId, command.User)
+	if err != nil {
+		log.Println("could not remove user", err.Error())
+	}
+}
+
+func (s *StompService) SendBroadcast(typ string, sessionId string, data interface{}) {
+	broadcast := model.Broadcast{
+		Type:      typ,
+		Data:      data,
+		Timestamp: time.Now(),
+	}
+	payload, _ := json.Marshal(broadcast)
+	err := s.Connection.Send(_topicBroadcast+"."+sessionId, "text/plan", payload)
+	if err != nil {
+		log.Println("could not send broadcast", typ, ":", err.Error())
+	}
+	log.Println("<<< sent", broadcast.Type, "on", _topicBroadcast)
 }
