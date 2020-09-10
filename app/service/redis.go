@@ -4,12 +4,14 @@ import (
 	"context"
 	"github.com/go-redis/redis/v8"
 	"github.com/segmentio/encoding/json"
+	"go.uber.org/zap"
 	"marcel.works/stop-go/app/model"
 	"os"
 	"time"
 )
 
 type RedisService struct {
+	Logger *zap.Logger
 	Client *redis.Client
 	Ctx    context.Context
 }

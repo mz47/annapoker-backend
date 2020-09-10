@@ -9,6 +9,7 @@ require (
 	github.com/opentracing/opentracing-go v1.2.0 // indirect
 	github.com/segmentio/encoding v0.1.15
 	github.com/sirupsen/logrus v1.6.0 // indirect
+	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20200728195943-123391ffb6de // indirect
 	golang.org/x/net v0.0.0-20200813134508-3edf25e44fcc // indirect
 	golang.org/x/sys v0.0.0-20200817155316-9781c653f443 // indirect

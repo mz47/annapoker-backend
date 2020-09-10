@@ -3,7 +3,7 @@ package service
 import (
 	"encoding/json"
 	"github.com/go-stomp/stomp"
-	"log"
+	"go.uber.org/zap"
 	"marcel.works/stop-go/app/model"
 	"os"
 	"time"
@@ -15,6 +15,7 @@ const (
 )
 
 type StompService struct {
+	Logger     *zap.Logger
 	Connection *stomp.Conn
 	DbService  *RedisService
 }
@@ -41,15 +42,15 @@ func (s *StompService) Connect() error {
 func (s *StompService) ReceiveCommands() {
 	subscription, err := s.Connection.Subscribe(_topicCommand, stomp.AckAuto)
 	if err != nil {
-		log.Fatal("cannot subscribe to", _topicCommand, ":", err.Error())
+		s.Logger.Error("cannot subscribe to" + _topicCommand + ":" + err.Error())
 	}
-	log.Println("subscribed to", _topicCommand)
+	s.Logger.Info("successfully subscriped to topic", zap.String("topic", _topicCommand))
 
 	var command model.Command
 	for true {
 		message := <-subscription.C
 		_ = json.Unmarshal(message.Body, &command)
-		log.Println(">>> received", command.Cmd, "on", _topicCommand)
+		s.Logger.Info(">>> received command", zap.String("command", command.Cmd), zap.String("topic", _topicCommand))
 		switch command.Cmd {
 		case "CREATE_SESSION":
 			s.CreateSession(command.SessionId)
@@ -74,14 +75,14 @@ func (s *StompService) ReceiveCommands() {
 func (s *StompService) CreateSession(sessionId string) {
 	err := s.DbService.InsertSession(sessionId)
 	if err != nil {
-		log.Println("could not create new session:", err.Error())
+		s.Logger.Error("could not create new session", zap.Error(err))
 	}
 }
 
 func (s *StompService) PublishUsers(sessionId string) {
 	users, err := s.DbService.GetUsers(sessionId)
 	if err != nil {
-		log.Println("no users found or session nil:", err.Error())
+		s.Logger.Error("no users found or session null", zap.Error(err))
 		s.SendBroadcast("NO_SESSION_FOUND", sessionId, nil)
 		return
 	}
@@ -91,7 +92,7 @@ func (s *StompService) PublishUsers(sessionId string) {
 func (s *StompService) PublishUpdateUsers(sessionId string) {
 	users, err := s.DbService.GetUsers(sessionId)
 	if err != nil {
-		log.Println("no users found or session nil:", err.Error())
+		s.Logger.Error("could not create new session", zap.Error(err))
 		s.SendBroadcast("NO_SESSION_FOUND", sessionId, nil)
 		return
 	}
@@ -101,18 +102,18 @@ func (s *StompService) PublishUpdateUsers(sessionId string) {
 func (s *StompService) ResetVotings(sessionId string) {
 	err := s.DbService.ResetVotings(sessionId)
 	if err != nil {
-		log.Println("could not reset votings:", err.Error())
+		s.Logger.Error("could not reset votings", zap.Error(err))
 	}
 }
 
 func (s *StompService) UpdateVoting(command model.Command) {
 	err := s.DbService.UpdateUser(command.SessionId, command.User)
 	if err != nil {
-		log.Println("could not update user:", err.Error())
+		s.Logger.Error("could not update users", zap.Error(err))
 	}
 	counter, err := s.DbService.CountVotings(command.SessionId)
 	if err != nil {
-		log.Println("could not count votings:", err.Error())
+		s.Logger.Error("could not count votings", zap.Error(err))
 	}
 	if counter == 0 {
 		s.SendBroadcast("REVEAL_VOTINGS", command.SessionId, nil)
@@ -122,14 +123,14 @@ func (s *StompService) UpdateVoting(command model.Command) {
 func (s *StompService) SaveUser(command model.Command) {
 	err := s.DbService.AddUserToSession(command.SessionId, command.User)
 	if err != nil {
-		log.Println("could not append user", err.Error())
+		s.Logger.Error("could not append user", zap.Error(err))
 	}
 }
 
 func (s *StompService) RemoveUser(command model.Command) {
 	err := s.DbService.RemoveUserFromSession(command.SessionId, command.User)
 	if err != nil {
-		log.Println("could not remove user", err.Error())
+		s.Logger.Error("could not remote user", zap.Error(err))
 	}
 }
 
@@ -142,7 +143,7 @@ func (s *StompService) SendBroadcast(typ string, sessionId string, data interfac
 	payload, _ := json.Marshal(broadcast)
 	err := s.Connection.Send(_topicBroadcast+"."+sessionId, "text/plan", payload)
 	if err != nil {
-		log.Println("could not send broadcast", typ, ":", err.Error())
+		s.Logger.Error("could not send broadcast", zap.String("type", typ), zap.Error(err))
 	}
-	log.Println("<<< sent", broadcast.Type, "on", _topicBroadcast)
+	s.Logger.Info("<<< sent broadcast", zap.String("type", broadcast.Type), zap.String("topic", _topicBroadcast))
 }
