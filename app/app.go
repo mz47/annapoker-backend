@@ -13,15 +13,18 @@ type App struct{}
 func (a *App) Start() {
 	loggerConfig := zap.NewProductionConfig()
 	loggerConfig.OutputPaths = []string{
-		"./annapoker.log",
+		"./logs/annapoker.log",
 	}
-	logger, _ := loggerConfig.Build()
+	logger, err := loggerConfig.Build()
+	if err != nil {
+		log.Fatalln("Error creating logger:", err.Error())
+	}
 	defer logger.Sync()
 
 	dbService := service.RedisService{Logger: logger}
 	stompService := service.StompService{Logger: logger, DbService: &dbService}
 
-	err := dbService.Connect()
+	err = dbService.Connect()
 	if err != nil {
 		logger.Error("could not connect to redis", zap.Error(err))
 	}
